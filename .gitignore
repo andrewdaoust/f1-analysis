@@ -8,3 +8,5 @@ __pycache__/
 
 # FastF1
 cache/
+
+.DS_Store

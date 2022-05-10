@@ -2,8 +2,9 @@ from fastf1.plotting import team_color
 from fastf1.utils import delta_time
 
 from bokeh.plotting import figure, show
-from bokeh.transform import factor_cmap
-from bokeh.models import ColumnDataSource
+from bokeh.transform import linear_cmap
+from bokeh.models import ColumnDataSource, ColorBar
+from bokeh.palettes import RdYlBu11, RdBu11
 from typing import List
 import pandas as pd
 
@@ -43,6 +44,24 @@ def init_figure(**kwargs):
     p.yaxis.minor_tick_line_color = "white"
 
     p.ygrid.grid_line_alpha = 0.4
+
+    return p
+
+
+def init_track_figure(**kwargs):
+    p = figure(**kwargs)
+
+    p.title.text_color = "black"
+
+    # p.toolbar.autohide = True
+
+    # p.background_fill_color = "#a6a6a6"
+    # p.border_fill_color = "#a6a6a6"
+    # p.outline_line_color = "#a6a6a6"
+
+    p.axis.visible = False
+    p.grid.visible = False
+    p.outline_line_color = None
 
     return p
 
@@ -175,7 +194,7 @@ def compare_tire_lap_times(session, driver):
     # lap_time = lap_time / pd.Timedelta(seconds=1)
 
     compounds = list(set(d.Compound))
-    palette = list(set(d.Compound.replace(TIRE_COLOR)))
+    palette = [TIRE_COLOR[c] for c in compounds]
 
     source = {
         'lap_number': lap_number,
@@ -202,4 +221,90 @@ def compare_tire_lap_times(session, driver):
     # p.legend.background_fill_alpha = 0.5
     # p.legend.label_text_color = "white"
     configure_legend(p)
+    show(p)
+
+def driver_speed_over_lap(session, driver, lap_number):
+    d = session.laps.pick_driver(driver)
+    if lap_number == 'fastest':
+        lap = d.pick_fastest()
+    else:
+        lap = d[d.LapNumber == lap_number]
+
+    telemetry = lap.get_telemetry()
+
+    x = telemetry.X
+    y = telemetry.Y
+    speed = telemetry.Speed
+
+    width = round(abs(max(x) - min(x)) / 15)
+    height = round(abs(max(y) - min(y)) / 15)
+
+    p = init_track_figure(title=f'{driver} Lap track speeds', plot_width=width, plot_height=height)
+
+    source = ColumnDataSource(dict(x=x,y=y,speed=speed))
+    mapper = linear_cmap(field_name='speed', palette=RdBu11 ,low=min(speed) ,high=max(speed))
+
+    p.line(x='x', y='y', line_width=10, color="#ababab", source=source)
+    p.circle(x='x', y='y', line_width=4, color=mapper, source=source)
+
+    color_bar = ColorBar(
+        color_mapper=mapper['transform'], width=8, 
+        background_fill_color=None, title="[km/h]", 
+        title_standoff=8, title_text_font_style="normal"
+    )
+
+    p.add_layout(color_bar, 'right')
+
+    show(p)
+
+
+def compare_driver_speed_over_lap(session, driver1, driver2, lap_number):
+    d1 = session.laps.pick_driver(driver1)
+    d1_team = d1.at[d1.index[0], 'Team']
+    d1_color = team_color(d1_team)
+    d2 = session.laps.pick_driver(driver2)
+    d2_team = d1.at[d1.index[0], 'Team']
+    d2_color = team_color(d2_team)
+    if lap_number == 'fastest':
+        d1_lap = d1.pick_fastest()
+        d2_lap = d2.pick_fastest()
+    else:
+        d1_lap = d1[d1.LapNumber == lap_number]
+        d2_lap = d2[d2.LapNumber == lap_number]
+
+    d1_telemetry = d1_lap.get_telemetry()
+    d2_telemetry = d2_lap.get_telemetry()
+
+    print(len(d1_telemetry))
+    print(len(d2_telemetry))
+
+    x = d1_telemetry.X
+    y = d1_telemetry.Y
+    d1_speed = d1_telemetry.Speed
+    d2_speed = d2_telemetry.Speed
+
+    speed = d1_speed - d2_speed
+    mask = speed >= 0
+    speed.loc[mask] = 1
+    speed.loc[~mask] = 0
+
+    width = round(abs(max(x) - min(x)) / 15)
+    height = round(abs(max(y) - min(y)) / 15)
+
+    p = init_track_figure(title=f'{driver1} v. {driver2} Lap track speeds', plot_width=width, plot_height=height)
+
+    source = ColumnDataSource(dict(x=x,y=y,speed=speed))
+    mapper = linear_cmap(field_name='speed', palette=[d2_color, d1_color] ,low=0 ,high=1)
+
+    p.line(x='x', y='y', line_width=10, color="#ababab", source=source)
+    p.circle(x='x', y='y', line_width=4, color=mapper, source=source)
+
+    # color_bar = ColorBar(
+    #     color_mapper=mapper['transform'], width=8, 
+    #     background_fill_color=None, title="[km/h]", 
+    #     title_standoff=8, title_text_font_style="normal"
+    # )
+
+    # p.add_layout(color_bar, 'right')
+
     show(p)
