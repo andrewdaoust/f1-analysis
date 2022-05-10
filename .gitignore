@@ -1,0 +1,10 @@
+# Python
+__pycache__/
+.ipynb_checkpoints/
+.python-version
+
+# IDE
+.vscode/
+
+# FastF1
+cache/
