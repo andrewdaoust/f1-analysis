@@ -2,12 +2,28 @@ from fastf1.plotting import team_color
 from fastf1.utils import delta_time
 
 from bokeh.plotting import figure, show
+from bokeh.transform import factor_cmap
+from bokeh.models import ColumnDataSource
 from typing import List
 import pandas as pd
 
 
-def init_figure(title=None, x_label=None, y_label=None):
-    p = figure()
+TIRE_COLOR = {
+    'SOFT': '#fc4432',
+    'MEDIUM': '#e8d402',
+    'HARD': 'white',
+    'INTERMEDIATE': '#3bc82c',
+    'WET': '#1788ff',
+}
+
+
+def init_figure(**kwargs):
+    p = figure(**kwargs)
+
+    p.title.text_color = "white"
+
+    # p.toolbar.autohide = True
+
     p.background_fill_color = "#525151"
     # p.background_fill_alpha = 0.5
     p.border_fill_color = "#525151"
@@ -28,17 +44,14 @@ def init_figure(title=None, x_label=None, y_label=None):
 
     p.ygrid.grid_line_alpha = 0.4
 
-    if title is not None:
-        p.title.text = title
-        p.title.text_color = "white"
-    
-    if x_label is not None:
-        p.xaxis.axis_label = x_label
-
-    if y_label is not None:
-        p.yaxis.axis_label = y_label
-
     return p
+
+
+def configure_legend(p):
+    p.legend.background_fill_color = "#525151"
+    p.legend.background_fill_alpha = 0.4
+    p.legend.label_text_color = "white"
+    p.legend.border_line_width = 0
     
 
 def _add_kwarg(kwargs, key, value):
@@ -51,8 +64,8 @@ def pick_lap(laps, lap_num):
     return laps[laps.LapNumber == lap_num]
     
 
-def line(lines: List, title=None, x_label=None, y_label=None):
-    p = init_figure(title=title, x_label=x_label, y_label=y_label)
+def line(lines: List, title=None, x_axis_label=None, y_axis_label=None):
+    p = init_figure(title=title, x_axis_label=x_axis_label, y_axis_label=y_axis_label)
     for li in lines:
         x = li['x']
         y = li['y']
@@ -73,8 +86,8 @@ def line(lines: List, title=None, x_label=None, y_label=None):
     show(p)
     
 
-def bar(data: List, title=None, x_label=None, y_label=None):
-    p = init_figure(title=title, x_label=x_label, y_label=y_label)
+def bar(data: List, title=None, x_axis_label=None, y_axis_label=None):
+    p = init_figure(title=title, x_axis_label=x_axis_label, y_axis_label=y_axis_label)
     for d in data:
         x = d['x']
         y = d['y']
@@ -123,7 +136,7 @@ def compare_session_bests(session, driver1, driver2):
         }
     ]
 
-    line(data, title=f'{driver1} v. {driver2} Fastest {session.name} Lap', x_label='Time', y_label='Speed [km/h]')
+    line(data, title=f'{driver1} v. {driver2} Fastest {session.name} Lap', x_axis_label='Time', y_axis_label='Speed [km/h]')
 
 
 def compare_session_laps(session, driver1, driver2):
@@ -152,4 +165,41 @@ def compare_session_laps(session, driver1, driver2):
         }
     ]
 
-    line(data, title=f'{driver1} v. {driver2} {session.name} Laps', x_label='Time', y_label='Speed [km/h]')
+    line(data, title=f'{driver1} v. {driver2} {session.name} Laps', x_axis_label='Lap #', y_axis_label='Lap time [s]')
+
+
+def compare_tire_lap_times(session, driver):
+    d = session.laps.pick_driver(driver)
+    lap_number = d.LapNumber.to_list()
+    # lap_time = d1.LapTime
+    # lap_time = lap_time / pd.Timedelta(seconds=1)
+
+    compounds = list(set(d.Compound))
+    palette = list(set(d.Compound.replace(TIRE_COLOR)))
+
+    source = {
+        'lap_number': lap_number,
+    }
+
+    for compound in compounds:
+        source[compound] = []
+    
+    for idx, lap in d.iterlaps():
+        time = lap.LapTime / pd.Timedelta(seconds=1)
+        compound = lap.Compound
+
+        for key in source.keys():
+            if key in compounds:
+                if key == compound:
+                    source[key].append(time)
+                else:
+                    source[key].append(None)
+
+    p = init_figure(title=f'{driver} {session.name} Laps', x_axis_label='Lap #', y_axis_label='Lap time [s]')
+    p.vbar_stack(compounds, x='lap_number', width=0.7, color=palette, source=ColumnDataSource(source), legend_label=compounds)
+
+    # p.legend.background_fill_color = "#525151"
+    # p.legend.background_fill_alpha = 0.5
+    # p.legend.label_text_color = "white"
+    configure_legend(p)
+    show(p)
