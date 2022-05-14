@@ -2,6 +2,7 @@ from fastf1.plotting import team_color
 from fastf1.utils import delta_time
 
 from bokeh.plotting import figure, show
+from bokeh.layouts import column
 from bokeh.transform import linear_cmap
 from bokeh.models import ColumnDataSource, ColorBar
 from bokeh.palettes import RdYlBu11, RdBu11
@@ -308,3 +309,87 @@ def compare_driver_speed_over_lap(session, driver1, driver2, lap_number):
     # p.add_layout(color_bar, 'right')
 
     show(p)
+
+
+def _get_lap_telemetry(session, driver, lap_number):
+    d = session.laps.pick_driver(driver)
+    if lap_number == 'fastest':
+        lap = d.pick_fastest()
+    else:
+        lap = d[d.LapNumber == lap_number]
+
+    color = team_color(lap.at[lap.index[0], 'Team'])
+
+    telemetry = lap.get_telemetry()
+
+    dist = telemetry.Distance / 1000
+    speed = telemetry.Speed
+    gear = telemetry.nGear
+    rpm = telemetry.RPM
+
+    return color, dist, speed, gear, rpm
+
+
+def lap_telemetry(session, driver, lap_number):
+    color, dist, speed, gear, rpm = _get_lap_telemetry(session, driver, lap_number)
+
+    p1 = init_figure(title=f'{driver} {session.name} Lap Telemetry', y_axis_label='Speed [km/h]', plot_width=600, plot_height=300)
+    p1.line(x=dist, y=speed, line_width=2, color=color)
+
+    p2 = init_figure(y_axis_label='RPM', plot_width=600, plot_height=300)
+    p2.line(x=dist, y=rpm, line_width=2, color=color)
+
+    p3 = init_figure(x_axis_label='Distance [km]', y_axis_label='Gear', plot_width=600, plot_height=300)
+    p3.line(x=dist, y=gear, line_width=2, color=color)
+
+    show(column(p1, p2, p3))
+
+
+def compare_lap_telemetry(session, driver1, driver2, lap_number):
+    d1_color, d1_dist, d1_speed, d1_gear, d1_rpm = _get_lap_telemetry(session, driver1, lap_number)
+    d2_color, d2_dist, d2_speed, d2_gear, d2_rpm = _get_lap_telemetry(session, driver2, lap_number)
+
+    p1 = init_figure(title=f'{driver1} v. {driver2} {session.name} Lap Telemetry', y_axis_label='Speed [km/h]', plot_width=600, plot_height=300)
+    p1.line(x=d1_dist, y=d1_speed, line_width=2, color=d1_color, legend_label=driver1)
+    p1.line(x=d2_dist, y=d2_speed, line_width=2, color=d2_color, legend_label=driver2)
+
+    p1.legend.background_fill_color = "#525151"
+    p1.legend.background_fill_alpha = 0.6
+    p1.legend.label_text_color = "white"
+    p1.legend.border_line_width = 1
+    p1.legend.location = 'bottom_right'
+
+    p2 = init_figure(y_axis_label='RPM', plot_width=600, plot_height=300)
+    p2.line(x=d1_dist, y=d1_rpm, line_width=2, color=d1_color)
+    p2.line(x=d2_dist, y=d2_rpm, line_width=2, color=d2_color)
+
+    p3 = init_figure(x_axis_label='Distance [km]', y_axis_label='Gear', plot_width=600, plot_height=300)
+    p3.line(x=d1_dist, y=d1_gear, line_width=2, color=d1_color)
+    p3.line(x=d2_dist, y=d2_gear, line_width=2, color=d2_color)
+
+    show(column(p1, p2, p3))
+
+
+def compare_driver_laps_telemetry(session, driver, lap_number1, lap_number2):
+    c, d1_dist, d1_speed, d1_gear, d1_rpm = _get_lap_telemetry(session, driver, lap_number1)
+    c, d2_dist, d2_speed, d2_gear, d2_rpm = _get_lap_telemetry(session, driver, lap_number2)
+
+    p1 = init_figure(title=f'{driver} {session.name} Lap {lap_number1} v {lap_number2} Telemetry', y_axis_label='Speed [km/h]', plot_width=600, plot_height=300)
+    p1.line(x=d1_dist, y=d1_speed, line_width=2, color='#3272d9', legend_label=str(lap_number1))
+    p1.line(x=d2_dist, y=d2_speed, line_width=2, color='#e62727', legend_label=str(lap_number2))
+
+    p1.legend.background_fill_color = "#525151"
+    p1.legend.background_fill_alpha = 0.6
+    p1.legend.label_text_color = "white"
+    p1.legend.border_line_width = 1
+    p1.legend.location = 'bottom_right'
+
+    p2 = init_figure(y_axis_label='RPM', plot_width=600, plot_height=300)
+    p2.line(x=d1_dist, y=d1_rpm, line_width=2, color='#3272d9')
+    p2.line(x=d2_dist, y=d2_rpm, line_width=2, color='#e62727')
+
+    p3 = init_figure(x_axis_label='Distance [km]', y_axis_label='Gear', plot_width=600, plot_height=300)
+    p3.line(x=d1_dist, y=d1_gear, line_width=2, color='#3272d9')
+    p3.line(x=d2_dist, y=d2_gear, line_width=2, color='#e62727')
+
+    show(column(p1, p2, p3))
